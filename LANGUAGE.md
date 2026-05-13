@@ -114,6 +114,55 @@ if (1 + 2) * 3 == 9 { 1 } else { 0 }              # = 1
 
 Comparisons return a boolean. `if`'s condition must be a boolean. Arithmetic operates on integers only. Types aren't checked at parse time — semantic checking will live in codegen (or a dedicated typeck pass later).
 
+---
+
+## Phase 4: functions and recursion
+
+Top-level function definitions with positional parameters and recursion. Every parameter is implicitly an integer (the only "general" type the language has — booleans are zero-extended on the way in if needed). A program can now contain `fn`-blocks before its `main` body; the main body is still `{ let_stmt } expr`.
+
+### Grammar (EBNF-ish)
+
+```
+program  = { fn_def } { let_stmt } expr ;
+fn_def   = "fn" IDENT "(" [ IDENT { "," IDENT } ] ")" block ;
+factor   = NUMBER | "true" | "false"
+         | IDENT [ "(" [ expr { "," expr } ] ")" ]
+         | "-" factor | "(" expr ")"
+         | block | if_expr ;
+```
+
+Everything else is unchanged from phase 3.
+
+### Keywords added
+
+`fn`.
+
+### Semantics
+
+- Functions are top-level. No nested functions, no closures.
+- Recursion is allowed (a function can call itself by name).
+- Forward references are allowed — definition order in source doesn't matter at the IR level since calls are resolved by symbol name.
+- Every parameter is i64 (booleans coerce via `zext` at call sites).
+- Every function returns i64 (booleans coerce on the way out).
+
+### Examples
+
+```
+fn add(x, y) { x + y }
+let r = add(3, 4);
+r                                                # = 7
+
+fn fact(n) {
+  if n == 0 { 1 } else { n * fact(n - 1) }
+}
+fact(5)                                          # = 120
+
+fn fib(n) {
+  if n < 2 { n } else { fib(n - 1) + fib(n - 2) }
+}
+fib(10)                                          # = 55
+```
+
 The `{ ... }` means "zero or more." Curly braces (instead of writing recursion) implicitly produce **left-associative** parsing in a recursive-descent parser, which is what you want for `1 - 2 - 3 = (1 - 2) - 3 = -4`.
 
 ### Precedence (low → high)
@@ -153,8 +202,8 @@ Anything that doesn't fit the grammar = parse error. Phase 1 just panics with a 
 |-------|------|---------------------|
 | 1 | arithmetic expressions | lexer, parser, AST design, LLVM IR basics, `llc`/`clang` pipeline |
 | 2 | `let` bindings, multi-statement programs (`;` separator) | scopes, symbol tables, IR stack slots (`alloca`, `store`, `load`) ← parser landed; codegen still pending |
-| 3 | `if`/`else`, comparisons (`< > <= >= == !=`), booleans, blocks | basic blocks, branches, phi nodes, SSA form ← parser landed; codegen still pending |
-| 4 | functions with parameters, recursion | **System V AMD64 ABI** in IR, call convention, multiple functions per module |
+| 3 | `if`/`else`, comparisons (`< > <= >= == !=`), booleans, blocks | basic blocks, branches, phi nodes, SSA form |
+| 4 | functions with parameters, recursion | **System V AMD64 ABI** in IR (`define`/`call`), multiple functions per module, per-function SSA namespace |
 | 5 | `print(x)` for integers, then strings | libc interop, **linker relocations**, global constants, `declare i32 @printf(...)` |
 | 6 | loops (`while`), arrays | mutable state in SSA, GEP (`getelementptr`), bounds (optional) |
 | 7+ | (open) — types, structs, modules, optimization passes, your own backend... | as needed |

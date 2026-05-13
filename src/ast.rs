@@ -38,6 +38,10 @@ pub enum Expr {
         else_branch: Box<Block>,
     },
     Block(Box<Block>),
+    Call {
+        name: String,
+        args: Vec<Expr>,
+    },
 }
 
 #[derive(Debug)]
@@ -52,7 +56,15 @@ pub struct Block {
 }
 
 #[derive(Debug)]
+pub struct FnDef {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Block,
+}
+
+#[derive(Debug)]
 pub struct Program {
+    pub fns: Vec<FnDef>,
     pub stmts: Vec<Stmt>,
     pub result: Expr,
 }

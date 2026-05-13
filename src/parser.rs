@@ -1,21 +1,23 @@
-use crate::ast::{BinOp, Block, CmpOp, Expr, Program, Stmt};
+use crate::ast::{BinOp, Block, CmpOp, Expr, FnDef, Program, Stmt};
 use crate::lexer::Token;
 
-// Recursive descent, LL(1).
+// Recursive descent, LL(1) with one-token lookahead.
 //
 // Grammar:
-//   program  = { let_stmt } expr
-//   let_stmt = "let" IDENT "=" expr ";"
-//   expr     = cmp_expr
-//   cmp_expr = add_expr [ cmp_op add_expr ]                     (non-associative)
-//   cmp_op   = "<" | ">" | "<=" | ">=" | "==" | "!="
-//   add_expr = mul_expr { ("+" | "-") mul_expr }
-//   mul_expr = factor   { ("*" | "/") factor }
-//   factor   = NUMBER | "true" | "false" | IDENT
-//            | "-" factor | "(" expr ")"
-//            | block | if_expr
-//   block    = "{" { let_stmt } expr "}"
-//   if_expr  = "if" expr block "else" block
+//   program   = { fn_def } { let_stmt } expr
+//   fn_def    = "fn" IDENT "(" [ IDENT { "," IDENT } ] ")" block
+//   let_stmt  = "let" IDENT "=" expr ";"
+//   expr      = cmp_expr
+//   cmp_expr  = add_expr [ cmp_op add_expr ]                     (non-associative)
+//   cmp_op    = "<" | ">" | "<=" | ">=" | "==" | "!="
+//   add_expr  = mul_expr { ("+" | "-") mul_expr }
+//   mul_expr  = factor   { ("*" | "/") factor }
+//   factor    = NUMBER | "true" | "false"
+//             | IDENT [ "(" [ expr { "," expr } ] ")" ]   (bare ident OR function call)
+//             | "-" factor | "(" expr ")"
+//             | block | if_expr
+//   block     = "{" { let_stmt } expr "}"
+//   if_expr   = "if" expr block "else" block
 
 struct Parser {
     tokens: Vec<Token>,
@@ -38,8 +40,47 @@ impl Parser {
     }
 
     fn parse_program(&mut self) -> Program {
+        let mut fns = Vec::new();
+        while let Some(Token::Fn) = self.peek() {
+            fns.push(self.parse_fn_def());
+        }
         let (stmts, result) = self.parse_block_body();
-        Program { stmts, result }
+        Program { fns, stmts, result }
+    }
+
+    fn parse_fn_def(&mut self) -> FnDef {
+        match self.advance() {
+            Some(Token::Fn) => {}
+            other => panic!("parse error: expected 'fn', got {:?}", other),
+        }
+        let name = match self.advance() {
+            Some(Token::Ident(s)) => s,
+            other => panic!("parse error: expected function name, got {:?}", other),
+        };
+        match self.advance() {
+            Some(Token::LParen) => {}
+            other => panic!("parse error: expected '(' after fn name, got {:?}", other),
+        }
+        let mut params = Vec::new();
+        if !matches!(self.peek(), Some(Token::RParen)) {
+            match self.advance() {
+                Some(Token::Ident(s)) => params.push(s),
+                other => panic!("parse error: expected parameter name, got {:?}", other),
+            }
+            while let Some(Token::Comma) = self.peek() {
+                self.advance();
+                match self.advance() {
+                    Some(Token::Ident(s)) => params.push(s),
+                    other => panic!("parse error: expected parameter name after ',', got {:?}", other),
+                }
+            }
+        }
+        match self.advance() {
+            Some(Token::RParen) => {}
+            other => panic!("parse error: expected ')' after parameters, got {:?}", other),
+        }
+        let body = self.parse_brace_block();
+        FnDef { name, params, body }
     }
 
     fn parse_block_body(&mut self) -> (Vec<Stmt>, Expr) {
@@ -137,7 +178,27 @@ impl Parser {
             Some(Token::Num(n)) => Expr::Num(n),
             Some(Token::True) => Expr::Bool(true),
             Some(Token::False) => Expr::Bool(false),
-            Some(Token::Ident(s)) => Expr::Ident(s),
+            Some(Token::Ident(s)) => {
+                // IDENT followed by '(' is a function call; otherwise it's a variable read.
+                if let Some(Token::LParen) = self.peek() {
+                    self.advance();
+                    let mut args = Vec::new();
+                    if !matches!(self.peek(), Some(Token::RParen)) {
+                        args.push(self.parse_expr());
+                        while let Some(Token::Comma) = self.peek() {
+                            self.advance();
+                            args.push(self.parse_expr());
+                        }
+                    }
+                    match self.advance() {
+                        Some(Token::RParen) => {}
+                        other => panic!("parse error: expected ')' in call, got {:?}", other),
+                    }
+                    Expr::Call { name: s, args }
+                } else {
+                    Expr::Ident(s)
+                }
+            }
             Some(Token::Minus) => Expr::Neg(Box::new(self.parse_factor())),
             Some(Token::LParen) => {
                 let e = self.parse_expr();

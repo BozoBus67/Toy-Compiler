@@ -3,6 +3,7 @@ pub enum Token {
     Num(i64),
     Ident(String),
     Let,
+    Fn,
     If,
     Else,
     True,
@@ -15,6 +16,7 @@ pub enum Token {
     Le,
     Ge,
     Semi,
+    Comma,
     Plus,
     Minus,
     Star,
@@ -41,6 +43,7 @@ pub fn lex(input: &str) -> Vec<Token> {
             '{' => { chars.next(); tokens.push(Token::LBrace); }
             '}' => { chars.next(); tokens.push(Token::RBrace); }
             ';' => { chars.next(); tokens.push(Token::Semi); }
+            ',' => { chars.next(); tokens.push(Token::Comma); }
             '=' => {
                 chars.next();
                 if let Some(&'=') = chars.peek() {
@@ -101,6 +104,7 @@ pub fn lex(input: &str) -> Vec<Token> {
                 }
                 match s.as_str() {
                     "let" => tokens.push(Token::Let),
+                    "fn" => tokens.push(Token::Fn),
                     "if" => tokens.push(Token::If),
                     "else" => tokens.push(Token::Else),
                     "true" => tokens.push(Token::True),
