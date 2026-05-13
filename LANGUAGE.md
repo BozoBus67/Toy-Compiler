@@ -25,6 +25,47 @@ NUMBER   = digit { digit } ;
 digit    = "0" | "1" | ... | "9" ;
 ```
 
+---
+
+## Phase 2: let bindings
+
+A program is zero or more `let` bindings followed by a final expression. Bindings live in a single flat scope (no nested blocks yet). The final expression's value is the program's exit code.
+
+### Grammar (EBNF-ish)
+
+```
+program  = { let_stmt } expr ;
+let_stmt = "let" IDENT "=" expr ";" ;
+expr     = term   { ("+" | "-") term } ;
+term     = factor { ("*" | "/") factor } ;
+factor   = NUMBER
+         | IDENT
+         | "-" factor
+         | "(" expr ")" ;
+IDENT    = letter { letter | digit | "_" } ;
+letter   = "a" | ... | "z" | "A" | ... | "Z" | "_" ;
+```
+
+### Keywords
+
+`let` is reserved and cannot be used as an identifier.
+
+### Examples
+
+```
+let x = 5;
+let y = 10;
+x + y               # = 15
+
+let a = 1 + 2;
+let b = a * 3;
+b - a               # = 6
+```
+
+### Scoping
+
+One flat scope. Later `let` shadows earlier (TBD — for now: redefining is allowed and the latest binding wins at codegen). Forward references are an error.
+
 The `{ ... }` means "zero or more." Curly braces (instead of writing recursion) implicitly produce **left-associative** parsing in a recursive-descent parser, which is what you want for `1 - 2 - 3 = (1 - 2) - 3 = -4`.
 
 ### Precedence (low → high)
@@ -63,7 +104,7 @@ Anything that doesn't fit the grammar = parse error. Phase 1 just panics with a 
 | Phase | Adds | Forces you to learn |
 |-------|------|---------------------|
 | 1 | arithmetic expressions | lexer, parser, AST design, LLVM IR basics, `llc`/`clang` pipeline |
-| 2 | `let` bindings, multi-statement programs (`;` separator) | scopes, symbol tables, IR stack slots (`alloca`, `store`, `load`) |
+| 2 | `let` bindings, multi-statement programs (`;` separator) | scopes, symbol tables, IR stack slots (`alloca`, `store`, `load`) ← parser landed; codegen still pending |
 | 3 | `if`/`else`, comparisons (`< > == !=`), booleans | basic blocks, branches, phi nodes, SSA form |
 | 4 | functions with parameters, recursion | **System V AMD64 ABI** in IR, call convention, multiple functions per module |
 | 5 | `print(x)` for integers, then strings | libc interop, **linker relocations**, global constants, `declare i32 @printf(...)` |

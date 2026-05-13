@@ -1,6 +1,10 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Num(i64),
+    Ident(String),
+    Let,
+    Eq,
+    Semi,
     Plus,
     Minus,
     Star,
@@ -24,6 +28,8 @@ pub fn lex(input: &str) -> Vec<Token> {
             '/' => { chars.next(); tokens.push(Token::Slash); }
             '(' => { chars.next(); tokens.push(Token::LParen); }
             ')' => { chars.next(); tokens.push(Token::RParen); }
+            '=' => { chars.next(); tokens.push(Token::Eq); }
+            ';' => { chars.next(); tokens.push(Token::Semi); }
             '0'..='9' => {
                 let mut n: i64 = 0;
                 while let Some(&d) = chars.peek() {
@@ -35,6 +41,21 @@ pub fn lex(input: &str) -> Vec<Token> {
                     }
                 }
                 tokens.push(Token::Num(n));
+            }
+            'a'..='z' | 'A'..='Z' | '_' => {
+                let mut s = String::new();
+                while let Some(&d) = chars.peek() {
+                    if d.is_ascii_alphanumeric() || d == '_' {
+                        s.push(d);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                match s.as_str() {
+                    "let" => tokens.push(Token::Let),
+                    _ => tokens.push(Token::Ident(s)),
+                }
             }
             _ => panic!("lex error: unexpected character {:?}", c),
         }
