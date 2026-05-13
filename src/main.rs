@@ -49,10 +49,7 @@ fn main() {
             print!("{}", native::codegen(&ast.result));
         }
         Mode::Llvm => {
-            if !ast.stmts.is_empty() {
-                panic!("llvm codegen: phase 1 only for now (no let bindings)");
-            }
-            print!("{}", codegen::codegen(&ast.result));
+            print!("{}", codegen::codegen(&ast));
         }
     }
 }
